@@ -2,140 +2,70 @@
 
 import streamlit as st
 import pandas as pd
+
 from backend import run_full_pipeline
 
+st.set_page_config(page_title="Liftoff DSP AI Audit", layout="wide")
 
-# ---------------------------------------------------
-# Streamlit page config
-# ---------------------------------------------------
-st.set_page_config(
-    page_title="Liftoff VX Block Audit – AI Assistant",
-    layout="wide",
+st.title("Liftoff DSP – AI Block/Unblock Audit")
+st.write(
+    "Provide publisher app IDs, optional exclusions, and your email. "
+    "The app will run the full analysis, email the AI summary, and show detailed tables below."
 )
 
+# -------------------------------
+# INPUTS
+# -------------------------------
+st.subheader("Inputs")
 
-# ---------------------------------------------------
-# Sidebar – Inputs
-# ---------------------------------------------------
-st.sidebar.title("Run VX Block Audit")
+col1, col2 = st.columns(2)
 
-st.sidebar.markdown(
-    """
-Enter publisher app IDs (Vungle app IDs), optional exclusions,  
-and where the AI summary email should be sent.
-"""
-)
+with col1:
+    app_ids_input = st.text_area(
+        "Publisher app IDs (comma-separated)",
+        placeholder="632cc7810ca02c6344d51822, 632cc70d35cc2d93ebf3b2d5, ...",
+        height=100,
+    )
 
-# Publisher app IDs (comma or newline separated)
-default_app_ids = (
-    "632cc7810ca02c6344d51822\n"
-    "632cc70d35cc2d93ebf3b2d5\n"
-    "5b2abc08c4867b46785c2206\n"
-    "650363ddd38855ef54aae568"
-)
+    excluded_input = st.text_area(
+        "Excluded block values (optional, comma-separated)",
+        placeholder="dreamgames.com, 1234567890",
+        height=80,
+        help="Use to ignore specific advertiser domains or app market IDs in the block analysis.",
+    )
 
-app_ids_text = st.sidebar.text_area(
-    "Publisher app IDs (one per line or comma-separated)",
-    value=default_app_ids,
-    height=120,
-)
+with col2:
+    recipient_email = st.text_input(
+        "Recipient email (summary will be sent here)",
+        value="",
+    )
+    sender_email = st.text_input(
+        "Sender Gmail (SMTP account)",
+        value="",
+        help="Gmail address used to send the email. Must have an App Password configured."
+    )
+    gmail_app_password = st.text_input(
+        "Gmail App Password",
+        type="password",
+        help="16-character Gmail App Password. Leave blank to skip sending email and only show tables."
+    )
 
-# Exclusions (block_values to ignore)
-exclusions_text = st.sidebar.text_area(
-    "Optional exclusions (domains / market IDs to ignore)",
-    value="",
-    placeholder="e.g. dreamgames.com, king.com",
-    height=80,
-)
+run_button = st.button("Run audit & (optionally) send email", type="primary")
 
-# Email settings
-st.sidebar.subheader("Email delivery")
+# Placeholder for results
+results = None
 
-recipient_email = st.sidebar.text_input(
-    "Recipient email",
-    value="ssai@liftoff.io",
-    placeholder="recipient@example.com",
-)
-
-sender_email = st.sidebar.text_input(
-    "Sender Gmail address",
-    value="ssai@liftoff.io",
-    placeholder="your_gmail@gmail.com",
-)
-
-gmail_app_password = st.sidebar.text_input(
-    "Gmail App Password (16-char)",
-    value="",
-    type="password",
-    help="Create this in your Google Account › Security › App passwords.",
-)
-
-# Schedule (coming soon)
-st.sidebar.subheader("Schedule (coming soon)")
-schedule_option = st.sidebar.selectbox(
-    "Run mode",
-    ["Run now (no schedule)", "Daily (coming soon)", "Weekly (coming soon)"],
-    index=0,
-    help="Scheduling not implemented yet – only 'Run now' works.",
-)
-
-run_button = st.sidebar.button("Run analysis", type="primary")
-
-
-# ---------------------------------------------------
-# Helper – parse text inputs into lists
-# ---------------------------------------------------
-def parse_id_list(text: str):
-    if not text:
-        return []
-    # Split on newlines and commas
-    raw = []
-    for line in text.splitlines():
-        raw.extend(line.split(","))
-    return [x.strip() for x in raw if x.strip()]
-
-
-def parse_exclusions(text: str):
-    if not text:
-        return []
-    raw = []
-    for line in text.splitlines():
-        raw.extend(line.split(","))
-    return [x.strip() for x in raw if x.strip()]
-
-
-# ---------------------------------------------------
-# Main layout
-# ---------------------------------------------------
-st.title("Liftoff VX – Block / Unblock AI Audit")
-st.markdown(
-    """
-Use this tool to analyse **publisher blocks vs DSP & network spend**,  
-see what **similar apps are monetising**, and receive an **AI-written summary by email**.
-"""
-)
-
-# Container for results
-results_placeholder = st.empty()
-
-
-# ---------------------------------------------------
-# When user clicks "Run analysis"
-# ---------------------------------------------------
 if run_button:
-    target_app_ids = parse_id_list(app_ids_text)
-    excluded_block_values = parse_exclusions(exclusions_text)
+    # Basic validation
+    target_app_ids = [x.strip() for x in app_ids_input.split(",") if x.strip()]
+    excluded_block_values = [x.strip() for x in excluded_input.split(",") if x.strip()]
 
     if not target_app_ids:
-        st.error("Please enter at least one publisher app ID.")
-    elif not recipient_email:
-        st.error("Please enter a recipient email.")
-    elif not sender_email or not gmail_app_password:
-        st.error("Please enter sender Gmail and Gmail App Password.")
+        st.error("Please provide at least one publisher app ID.")
     else:
-        with st.spinner("Running analysis, generating AI summary and sending email..."):
+        with st.spinner("Running full analysis..."):
             try:
-                result = run_full_pipeline(
+                results = run_full_pipeline(
                     target_app_ids=target_app_ids,
                     excluded_block_values=excluded_block_values,
                     recipient_email=recipient_email,
@@ -143,90 +73,99 @@ if run_button:
                     gmail_app_password=gmail_app_password,
                 )
             except Exception as e:
-                st.error(f"Something went wrong: {e}")
-            else:
-                st.success(f"Done! AI summary emailed to {recipient_email}.")
+                st.error(f"Something went wrong while running the pipeline: {e}")
+                results = None
 
-                # ---------------------------------------------------
-                # Show AI summary (HTML)
-                # ---------------------------------------------------
-                st.subheader("AI Summary (preview)")
-                st.markdown(
-                    "This is the same HTML summary that was sent by email:"
-                )
+# -------------------------------
+# OUTPUTS
+# -------------------------------
 
-                # Use HTML container so it keeps the formatting & tables
-                st.components.v1.html(
-                    result["html_summary"],
-                    height=600,
-                    scrolling=True,
-                )
+if results is not None:
+    st.success("Analysis completed.")
 
-                # ---------------------------------------------------
-                # Show detailed tables in tabs
-                # ---------------------------------------------------
-                st.subheader("Detailed outputs")
+    # Email / AI summary status
+    email_status = results.get("email_status")
+    ai_error = results.get("ai_error")
 
-                (
-                    tab1,
-                    tab2,
-                    tab3,
-                    tab4,
-                    tab5,
-                ) = st.tabs(
-                    [
-                        "L7D DSP spend (blocks)",
-                        "L30D network spend (blocks)",
-                        "Block summary per app",
-                        "Competitor revenue matrix",
-                        "Summary metrics",
-                    ]
-                )
+    if email_status == "email_sent":
+        st.info(f"AI summary generated and email sent to **{recipient_email}**.")
+    elif email_status == "summary_built":
+        st.info("AI summary generated (email not sent – missing sender/recipient or password).")
+    elif email_status == "failed_ai_or_email":
+        st.warning("AI summary or email failed. Showing tables only.")
+        if ai_error:
+            with st.expander("Show AI/email error details"):
+                st.code(ai_error, language="text")
+    else:
+        st.info("AI summary/email not attempted (likely missing configuration).")
 
-                with tab1:
-                    st.markdown(
-                        """
-**Blocks enriched with L7D DSP spend (app + domain)**  
-Non-VX spend shows what other DSPs are spending where VX is blocked.
-"""
-                    )
-                    st.dataframe(result["combined_blocks_with_spend"])
+    # ---------- AI SUMMARY PREVIEW ----------
+    html_summary = results.get("html_summary")
+    if html_summary:
+        st.subheader("AI Summary – Email Preview")
+        st.caption("This is exactly what is sent in the email body.")
+        st.components.v1.html(html_summary, height=500, scrolling=True)
 
-                with tab2:
-                    st.markdown(
-                        """
-**Global advertiser network spend (L30D) for blocked advertisers**  
-Helps size missed opportunity from global scale.
-"""
-                    )
-                    st.dataframe(result["combined_blocks_with_global"])
+    st.markdown("---")
 
-                with tab3:
-                    st.markdown(
-                        """
-**Block summary per app (our apps only)**  
-Block aggressiveness vs similar apps, including z-scores and missed spend.
-"""
-                    )
-                    st.dataframe(result["combined_summary_our"])
+    # ---------- TABS FOR TABLES ----------
+    tab_combined, tab_per_app, tab_metrics = st.tabs(
+        ["Combined Tables", "Per-App Tables", "Summary Metrics"]
+    )
 
-                with tab4:
-                    st.markdown(
-                        """
-**Competitor revenue matrix (L7D)**  
-Revenue similar apps earn from advertisers the target apps block.
-"""
-                    )
-                    st.dataframe(result["combined_rev_matrix"])
+    # ----- Combined Tables -----
+    with tab_combined:
+        st.subheader("Combined Tables (All Selected Apps)")
 
-                with tab5:
-                    st.markdown(
-                        """
-**High-level summary metrics**  
-Key roll-up metrics used by the AI summary.
-"""
-                    )
-                    st.dataframe(result["summary_metrics"])
+        st.markdown("**Legend (similar app mappings)**")
+        st.code(results["combined_legend"], language="text")
+
+        st.markdown("### 1. Blocks enriched with L7D DSP spend (app + domain)")
+        st.dataframe(results["combined_blocks_with_spend"].head(50))
+
+        st.markdown("### 2. Global advertiser network spend (L30D) for blocks")
+        st.dataframe(results["combined_blocks_with_global"].head(50))
+
+        st.markdown("### 3. Block summary per app (our apps only)")
+        st.dataframe(results["combined_summary_our"].head(50))
+
+        st.markdown("### 4. Competitor revenue matrix (L7D per similar app)")
+        st.dataframe(results["combined_rev_matrix"].head(50))
+
+    # ----- Per-App Tables -----
+    with tab_per_app:
+        st.subheader("Per-App Detailed Tables")
+
+        per_app_results = results.get("per_app_results", {})
+        if not per_app_results:
+            st.write("No per-app results available.")
+        else:
+            for app_id, tables in per_app_results.items():
+                with st.expander(f"Publisher app: {app_id}", expanded=False):
+                    legend_text = tables.get("legend_text", "")
+                    if legend_text:
+                        st.markdown("**Similar app legend**")
+                        st.code(legend_text, language="text")
+
+                    st.markdown("**Blocks enriched with L7D DSP spend (app + domain)**")
+                    st.dataframe(tables["blocks_with_spend"].head(20))
+
+                    st.markdown("**Global advertiser network spend (L30D) for blocks**")
+                    st.dataframe(tables["blocks_with_global"].head(20))
+
+                    st.markdown("**Block summary per app (advertiser L30D spend > 30,000)**")
+                    st.dataframe(tables["summary_per_app"].head(20))
+
+                    st.markdown("**Competitor revenue matrix (L7D per similar app)**")
+                    st.dataframe(tables["competitor_rev_matrix"].head(20))
+
+    # ----- Summary Metrics -----
+    with tab_metrics:
+        st.subheader("High-level Summary Metrics")
+        st.dataframe(results["summary_metrics"])
+        st.caption(
+            "These aggregates are also used as input to the AI summary (lost spend, competitor revenue, etc.)."
+        )
 
 else:
-    st.info("Fill in the sidebar and click **Run analysis** to start.")
+    st.info("Fill in the inputs above and click **Run audit & (optionally) send email** to start.")
