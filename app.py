@@ -19,8 +19,8 @@ st.write(
 def format_money_columns(df: pd.DataFrame) -> pd.DataFrame:
     """
     Returns a copy of df where any numeric column whose name contains
-    'spend' or 'revenue' is formatted as a dollar amount with no decimals.
-    Other columns are untouched.
+    'spend' or 'revenue' (but is NOT a rank column) is formatted as a
+    dollar amount with no decimals. Other columns are untouched.
     """
     if df is None or df.empty:
         return df
@@ -30,6 +30,7 @@ def format_money_columns(df: pd.DataFrame) -> pd.DataFrame:
         c
         for c in df_fmt.columns
         if any(key in c.lower() for key in ["spend", "revenue"])
+        and "rank" not in c.lower()  # <-- avoid formatting rank_missed_spend, etc.
     ]
 
     for col in money_cols:
@@ -37,6 +38,37 @@ def format_money_columns(df: pd.DataFrame) -> pd.DataFrame:
             df_fmt[col] = df_fmt[col].apply(
                 lambda x: f"${int(round(x)):,}" if pd.notnull(x) else ""
             )
+
+    return df_fmt
+
+
+def format_summary_table(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Special formatting for the Block summary per app table:
+      - block_rate_diff_vs_peers: integer, no decimals
+      - rank* columns stay as integers
+      - spend/revenue columns still get $ formatting via format_money_columns
+    """
+    if df is None or df.empty:
+        return df
+
+    df_fmt = df.copy()
+
+    # Ensure block_rate_diff_vs_peers is a whole number (no decimals)
+    if "block_rate_diff_vs_peers" in df_fmt.columns:
+        if pd.api.types.is_numeric_dtype(df_fmt["block_rate_diff_vs_peers"]):
+            df_fmt["block_rate_diff_vs_peers"] = (
+                df_fmt["block_rate_diff_vs_peers"].round(0).astype("Int64")
+            )
+
+    # Rank columns should remain integers (no $ formatting)
+    for col in df_fmt.columns:
+        if "rank" in col.lower() and pd.api.types.is_numeric_dtype(df_fmt[col]):
+            # Cast to nullable integer dtype so NaNs (if any) are supported
+            df_fmt[col] = df_fmt[col].astype("Int64")
+
+    # Then apply money formatting for relevant spend/revenue columns
+    df_fmt = format_money_columns(df_fmt)
 
     return df_fmt
 
@@ -173,7 +205,7 @@ if results is not None:
 
         st.markdown("### 3. Block summary per app (our apps only)")
         st.dataframe(
-            format_money_columns(
+            format_summary_table(     # <-- special formatting here
                 results["combined_summary_our"].head(50)
             )
         )
@@ -216,7 +248,7 @@ if results is not None:
 
                     st.markdown("**Block summary per app (advertiser L30D spend > 30,000)**")
                     st.dataframe(
-                        format_money_columns(
+                        format_summary_table(   # <-- special formatting here too
                             tables["summary_per_app"].head(20)
                         )
                     )
