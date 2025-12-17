@@ -17,7 +17,7 @@ from email.mime.text import MIMEText
 DATA_DIR = "data/"
 
 # --- OpenAI setup (replace with your real key locally) ---
-os.environ["OPENAI_API_KEY"] = "YOUR_OPENAI_API_KEY_HERE"
+os.environ["OPENAI_API_KEY"] = "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"
 client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
 
 
@@ -829,7 +829,7 @@ def send_email_summary(
     to_email: str,
     subject: str = "Liftoff DSP – AI Opportunity Summary",
     from_email: str = "your_gmail@gmail.com",        # <-- Replace
-    gmail_app_password: str = "YOUR_GMAIL_APP_PASSWORD_HERE",  # <-- Replace
+    gmail_app_password: str = "olak jkcf mwsx xjde",  # <-- Replace
 ):
     msg = MIMEMultipart("alternative")
     msg["Subject"] = subject
