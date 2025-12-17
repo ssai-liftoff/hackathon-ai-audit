@@ -11,16 +11,11 @@ from email.mime.text import MIMEText
 
 
 # =====================================================================
-# 0. CONFIG – DATA PATH & OPENAI
+# 0. CONFIG – DATA PATH
 # =====================================================================
 
 # In Streamlit / GitHub, your CSVs live in ./data
 DATA_DIR = "data/"
-
-# --- OpenAI setup ---
-# RECOMMENDED: set OPENAI_API_KEY as a Streamlit secret or env variable
-api_key = os.getenv("OPENAI_API_KEY")
-client = OpenAI(api_key=api_key) if api_key else None
 
 
 # =====================================================================
@@ -711,9 +706,13 @@ def build_ai_summary_html(
     combined_summary_our,
     combined_rev_matrix,
     summary_metrics,
+    openai_api_key: str,
 ):
-    if client is None:
-        raise RuntimeError("OpenAI client is not configured. Set OPENAI_API_KEY.")
+    openai_api_key = (openai_api_key or "").strip()
+    if not openai_api_key:
+        raise RuntimeError("OpenAI API key not provided.")
+
+    client = OpenAI(api_key=openai_api_key)
 
     ai_payload = {
         "legend_text": combined_legend,
@@ -833,8 +832,8 @@ def send_email_summary(
     html_body: str,
     to_email: str,
     subject: str = "Liftoff DSP – AI Opportunity Summary",
-    from_email: str = "your_gmail@gmail.com",        # <-- Replace in Streamlit UI
-    gmail_app_password: str = "YOUR_GMAIL_APP_PASSWORD_HERE",  # <-- Replace in Streamlit UI
+    from_email: str = "your_gmail@gmail.com",        # Filled from Streamlit UI
+    gmail_app_password: str = "YOUR_GMAIL_APP_PASSWORD_HERE",  # Filled from Streamlit UI
 ):
     msg = MIMEMultipart("alternative")
     msg["Subject"] = subject
@@ -858,16 +857,17 @@ def run_full_pipeline(
     recipient_email,
     sender_email,
     gmail_app_password,
+    openai_api_key,
 ):
     """
     Main function to be called by Streamlit.
     - Runs full multi-app analysis
-    - Builds AI HTML summary (if OpenAI works)
-    - Sends email (if AI + SMTP work)
-    - Returns:
+    - Optionally builds AI HTML summary (if OpenAI key provided)
+    - Optionally sends email (if summary built + SMTP info provided)
+    - Always returns:
         * combined tables (all apps)
         * per-app tables (4 main tables per app)
-        * html_summary (or None on failure)
+        * html_summary (or None on failure / not configured)
         * email_status + ai_error (for UX/debugging)
     """
 
@@ -996,41 +996,45 @@ def run_full_pipeline(
 
     # ---------- AI SUMMARY + EMAIL (SAFE WRAP) ----------
     html_summary = None
-    email_status = "not_sent"
     ai_error = None
 
-    try:
-        html_summary = build_ai_summary_html(
-            target_app_ids=target_app_ids,
-            combined_legend=combined_legend,
-            combined_blocks_with_spend=combined_blocks_with_spend,
-            combined_blocks_with_global=combined_blocks_with_global,
-            combined_summary_our=combined_summary_our,
-            combined_rev_matrix=combined_rev_matrix,
-            summary_metrics=summary_metrics,
-        )
-        email_status = "summary_built"
-
-        # Only try sending email if user actually provided creds
-        if recipient_email and sender_email and gmail_app_password:
-            send_email_summary(
-                html_body=html_summary,
-                to_email=recipient_email,
-                from_email=sender_email,
-                gmail_app_password=gmail_app_password,
+    openai_api_key_clean = (openai_api_key or "").strip()
+    if not openai_api_key_clean:
+        email_status = "ai_not_configured"
+    else:
+        try:
+            html_summary = build_ai_summary_html(
+                target_app_ids=target_app_ids,
+                combined_legend=combined_legend,
+                combined_blocks_with_spend=combined_blocks_with_spend,
+                combined_blocks_with_global=combined_blocks_with_global,
+                combined_summary_our=combined_summary_our,
+                combined_rev_matrix=combined_rev_matrix,
+                summary_metrics=summary_metrics,
+                openai_api_key=openai_api_key_clean,
             )
-            email_status = "email_sent"
+            email_status = "summary_built"
 
-    except Exception as e:
-        # We swallow AI/email errors here so tables still return
-        ai_error = str(e)
-        email_status = "failed_ai_or_email"
+            # Only try sending email if user actually provided creds
+            if recipient_email and sender_email and gmail_app_password:
+                send_email_summary(
+                    html_body=html_summary,
+                    to_email=recipient_email,
+                    from_email=sender_email,
+                    gmail_app_password=gmail_app_password,
+                )
+                email_status = "email_sent"
+
+        except Exception as e:
+            # We swallow AI/email errors here so tables still return
+            ai_error = str(e)
+            email_status = "failed_ai_or_email"
 
     # ---------- RETURN TO STREAMLIT ----------
     return {
         # AI summary / email info
-        "html_summary": html_summary,          # may be None if error
-        "email_status": email_status,          # 'email_sent', 'summary_built', 'failed_ai_or_email', ...
+        "html_summary": html_summary,          # may be None
+        "email_status": email_status,          # 'email_sent', 'summary_built', 'failed_ai_or_email', 'ai_not_configured'
         "ai_error": ai_error,                  # error string or None
 
         # Combined outputs
