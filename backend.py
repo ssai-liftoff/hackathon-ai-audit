@@ -829,7 +829,7 @@ def send_email_summary(
     to_email: str,
     subject: str = "Liftoff DSP – AI Opportunity Summary",
     from_email: str = "your_gmail@gmail.com",        # <-- Replace
-    gmail_app_password: str = "olak jkcf mwsx xjde",  # <-- Replace
+    gmail_app_password: str = "YOUR_GMAIL_APP_PASSWORD_HERE",  # <-- Replace
 ):
     msg = MIMEMultipart("alternative")
     msg["Subject"] = subject
