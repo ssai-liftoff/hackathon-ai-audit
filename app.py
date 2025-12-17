@@ -19,6 +19,7 @@ st.write(
 def format_money_columns(df: pd.DataFrame) -> pd.DataFrame:
     """
     Format any spend/revenue column into $#,### (no decimals).
+    Now also includes *_rev_l7d columns used in the competitor matrix.
     Ensures the column stays as string so Streamlit doesn't override.
     Skips any column whose name contains 'rank'.
     """
@@ -29,7 +30,10 @@ def format_money_columns(df: pd.DataFrame) -> pd.DataFrame:
     money_cols = [
         c
         for c in df_fmt.columns
-        if any(key in c.lower() for key in ["spend", "revenue"])
+        if (
+            any(key in c.lower() for key in ["spend", "revenue"])
+            or c.lower().endswith("_rev_l7d")  # revenue columns in Table 4
+        )
         and "rank" not in c.lower()  # avoid e.g. rank_missed_spend
     ]
 
@@ -39,7 +43,6 @@ def format_money_columns(df: pd.DataFrame) -> pd.DataFrame:
             df_fmt[col] = df_fmt[col].apply(
                 lambda x: f"${int(round(x)):,}" if pd.notnull(x) else ""
             )
-
         # Force column to string to prevent Streamlit from auto-formatting
         df_fmt[col] = df_fmt[col].astype(str)
 
@@ -73,6 +76,56 @@ def format_block_summary_table(df: pd.DataFrame) -> pd.DataFrame:
         if "rank" in col.lower():
             if pd.api.types.is_numeric_dtype(df_fmt[col]):
                 df_fmt[col] = df_fmt[col].astype("Int64")
+
+    return df_fmt
+
+
+# =====================================================================
+# Helper: format Summary Metrics table
+# =====================================================================
+def format_summary_metrics(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    In summary_metrics:
+      - Row 1, 2, 4 values are money -> $#,###
+      - Row 3 is a count of blocks -> integer, no $
+    Uses 'metric' column text to decide.
+    """
+    if df is None or df.empty:
+        return df
+
+    df_fmt = df.copy()
+
+    money_metrics = {
+        "Total L7D non-VX DSP spend across all blocks",
+        "Total L30D global network advertiser spend across all blocks",
+        "Total L7D competitor/similar apps revenue across all blocks",
+    }
+
+    if "metric" in df_fmt.columns and "value" in df_fmt.columns:
+        def fmt_value(row):
+            metric = row["metric"]
+            val = row["value"]
+
+            if pd.isna(val):
+                return ""
+
+            # Money rows: 1,2,4
+            if metric in money_metrics:
+                try:
+                    return f"${int(round(float(val))):,}"
+                except Exception:
+                    return val
+
+            # Count row (number of blocks)
+            if "Number of blocks" in str(metric):
+                try:
+                    return int(round(float(val)))
+                except Exception:
+                    return val
+
+            return val
+
+        df_fmt["value"] = df_fmt.apply(fmt_value, axis=1).astype(str)
 
     return df_fmt
 
@@ -271,9 +324,11 @@ if results is not None:
     # ----- Summary Metrics -----
     with tab_metrics:
         st.subheader("High-level Summary Metrics")
-        # Leaving metrics mostly raw so counts stay clean,
-        # but we can money-format the value column where appropriate if you want later.
-        st.dataframe(results["summary_metrics"])
+        st.dataframe(
+            format_summary_metrics(
+                results["summary_metrics"]
+            )
+        )
         st.caption(
             "These aggregates are also used as input to the AI summary (lost spend, competitor revenue, etc.)."
         )
