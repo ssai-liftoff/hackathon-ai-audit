@@ -267,43 +267,13 @@ if results is not None:
                             tables["competitor_rev_matrix"].head(20)
                         )
                     )
-def format_summary_metrics(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Format summary_metrics table:
-      - Rows 1, 2, 4 => dollar formatting
-      - Row 3 remains integer
-    """
-    if df is None or df.empty:
-        return df
 
-    df_fmt = df.copy()
-
-    for i, row in df_fmt.iterrows():
-        metric = row["metric"]
-        value = row["value"]
-
-        # Dollar-format rows 1, 2, 4
-        if any(keyword in metric.lower() for keyword in [
-            "non-vx dsp spend",
-            "global network advertiser spend",
-            "competitor/similar apps revenue"
-        ]):
-            if pd.notnull(value) and isinstance(value, (int, float)):
-                df_fmt.at[i, "value"] = f"${int(round(value)):,}"
-        else:
-            # Leave integers as-is
-            df_fmt.at[i, "value"] = int(value) if pd.notnull(value) else value
-
-    return df_fmt
-    
     # ----- Summary Metrics -----
     with tab_metrics:
         st.subheader("High-level Summary Metrics")
         # Leaving metrics mostly raw so counts stay clean,
         # but we can money-format the value column where appropriate if you want later.
-        st.dataframe(
-    format_summary_metrics(results["summary_metrics"])
-)
+        st.dataframe(results["summary_metrics"])
         st.caption(
             "These aggregates are also used as input to the AI summary (lost spend, competitor revenue, etc.)."
         )
