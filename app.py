@@ -173,6 +173,49 @@ with col2:
         help="16-character Gmail App Password. Leave blank to skip sending email and only show tables.",
     )
 
+# -------------------------------
+# Inline Scheduler (WIP – no real automation)
+# -------------------------------
+st.markdown("### Scheduler (WIP)")
+
+st.caption(
+    "Prototype controls for future automation. These settings are **not yet scheduling anything**, "
+    "but can be used in demos to show how recurring audits might be configured."
+)
+
+sched_col1, sched_col2, sched_col3 = st.columns([1, 1, 1.2])
+
+with sched_col1:
+    scheduler_enabled = st.checkbox(
+        "Enable schedule (WIP)",
+        value=False,
+        help="Visual only – does not actually schedule background runs yet.",
+    )
+
+with sched_col2:
+    schedule_frequency = st.selectbox(
+        "Frequency (WIP)",
+        ["None", "Daily", "Weekly", "Monthly"],
+        index=0,
+        help="Future: how often the audit would run.",
+    )
+
+with sched_col3:
+    schedule_time = st.time_input(
+        "Preferred time (local, WIP)",
+        help="Future: time of day for the scheduled audit.",
+    )
+
+# Weekly-specific extra control (still WIP)
+weekly_day = None
+if schedule_frequency == "Weekly":
+    weekly_day = st.selectbox(
+        "Day of week (WIP)",
+        ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
+        index=0,
+        help="Future: weekly send-out day.",
+    )
+
 run_button = st.button("Run audit & (optionally) send email", type="primary")
 
 # Placeholder for results
@@ -206,6 +249,24 @@ if run_button:
 
 if results is not None:
     st.success("Analysis completed.")
+
+    # Show a human-readable summary of the (fake) scheduler config
+    if scheduler_enabled and schedule_frequency != "None":
+        if schedule_frequency == "Weekly" and weekly_day:
+            sched_text = (
+                f"Scheduler (placeholder): would run **{schedule_frequency.lower()} on {weekly_day}** "
+                f"around **{schedule_time.strftime('%H:%M')}**."
+            )
+        else:
+            sched_text = (
+                f"Scheduler (placeholder): would run **{schedule_frequency.lower()}** "
+                f"around **{schedule_time.strftime('%H:%M')}**."
+            )
+        st.info(sched_text)
+    else:
+        st.caption(
+            "Scheduler WIP: enable it above and choose a frequency/time to see the planned run cadence."
+        )
 
     # Email / AI summary status
     email_status = results.get("email_status")
