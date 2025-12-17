@@ -13,6 +13,34 @@ st.write(
     "The app will run the full analysis, optionally email the AI summary, and show detailed tables below."
 )
 
+# =====================================================================
+# Helper: format spend / revenue columns as $ with no decimals
+# =====================================================================
+def format_money_columns(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Returns a copy of df where any numeric column whose name contains
+    'spend' or 'revenue' is formatted as a dollar amount with no decimals.
+    Other columns are untouched.
+    """
+    if df is None or df.empty:
+        return df
+
+    df_fmt = df.copy()
+    money_cols = [
+        c
+        for c in df_fmt.columns
+        if any(key in c.lower() for key in ["spend", "revenue"])
+    ]
+
+    for col in money_cols:
+        if pd.api.types.is_numeric_dtype(df_fmt[col]):
+            df_fmt[col] = df_fmt[col].apply(
+                lambda x: f"${int(round(x)):,}" if pd.notnull(x) else ""
+            )
+
+    return df_fmt
+
+
 # -------------------------------
 # INPUTS
 # -------------------------------
@@ -130,16 +158,32 @@ if results is not None:
         st.code(results["combined_legend"], language="text")
 
         st.markdown("### 1. Blocks enriched with L7D DSP spend (app + domain)")
-        st.dataframe(results["combined_blocks_with_spend"].head(50))
+        st.dataframe(
+            format_money_columns(
+                results["combined_blocks_with_spend"].head(50)
+            )
+        )
 
         st.markdown("### 2. Global advertiser network spend (L30D) for blocks")
-        st.dataframe(results["combined_blocks_with_global"].head(50))
+        st.dataframe(
+            format_money_columns(
+                results["combined_blocks_with_global"].head(50)
+            )
+        )
 
         st.markdown("### 3. Block summary per app (our apps only)")
-        st.dataframe(results["combined_summary_our"].head(50))
+        st.dataframe(
+            format_money_columns(
+                results["combined_summary_our"].head(50)
+            )
+        )
 
         st.markdown("### 4. Competitor revenue matrix (L7D per similar app)")
-        st.dataframe(results["combined_rev_matrix"].head(50))
+        st.dataframe(
+            format_money_columns(
+                results["combined_rev_matrix"].head(50)
+            )
+        )
 
     # ----- Per-App Tables -----
     with tab_per_app:
@@ -157,20 +201,37 @@ if results is not None:
                         st.code(legend_text, language="text")
 
                     st.markdown("**Blocks enriched with L7D DSP spend (app + domain)**")
-                    st.dataframe(tables["blocks_with_spend"].head(20))
+                    st.dataframe(
+                        format_money_columns(
+                            tables["blocks_with_spend"].head(20)
+                        )
+                    )
 
                     st.markdown("**Global advertiser network spend (L30D) for blocks**")
-                    st.dataframe(tables["blocks_with_global"].head(20))
+                    st.dataframe(
+                        format_money_columns(
+                            tables["blocks_with_global"].head(20)
+                        )
+                    )
 
                     st.markdown("**Block summary per app (advertiser L30D spend > 30,000)**")
-                    st.dataframe(tables["summary_per_app"].head(20))
+                    st.dataframe(
+                        format_money_columns(
+                            tables["summary_per_app"].head(20)
+                        )
+                    )
 
                     st.markdown("**Competitor revenue matrix (L7D per similar app)**")
-                    st.dataframe(tables["competitor_rev_matrix"].head(20))
+                    st.dataframe(
+                        format_money_columns(
+                            tables["competitor_rev_matrix"].head(20)
+                        )
+                    )
 
     # ----- Summary Metrics -----
     with tab_metrics:
         st.subheader("High-level Summary Metrics")
+        # Leaving metrics raw so counts stay clean (no $ on the "number of blocks" row)
         st.dataframe(results["summary_metrics"])
         st.caption(
             "These aggregates are also used as input to the AI summary (lost spend, competitor revenue, etc.)."
