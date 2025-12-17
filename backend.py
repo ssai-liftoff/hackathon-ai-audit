@@ -16,9 +16,11 @@ from email.mime.text import MIMEText
 # In Streamlit / GitHub, your CSVs live in ./data
 DATA_DIR = "data/"
 
-# --- OpenAI setup (replace with your real key locally) ---
-os.environ["OPENAI_API_KEY"] = "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"
-client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
+# --- OpenAI setup ---
+RAW_OPENAI_KEY = "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"  # your full key
+api_key = RAW_OPENAI_KEY.strip()  # removes trailing spaces/newlines just in case
+os.environ["OPENAI_API_KEY"] = api_key
+client = OpenAI(api_key=api_key)
 
 
 # =====================================================================
